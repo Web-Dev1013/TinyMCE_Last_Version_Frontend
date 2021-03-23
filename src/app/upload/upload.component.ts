@@ -14,6 +14,8 @@ declare var tinyMCE: any;
 export class UploadComponent implements OnInit {
   constructor(private venderService: VenderService) {
     this.initDefine = this.initDefine.bind(this);
+    this.saveImageInfo = this.saveImageInfo.bind(this);
+    this.removeImage = this.removeImage.bind(this);
   }
 
   ngOnInit(): void {
@@ -62,15 +64,21 @@ export class UploadComponent implements OnInit {
         paste_data_images: true,
         file_picker_types: 'image',
         location: subThis.imageUrl,
-
         file_picker_callback: function (callback: any, value: any, meta: any) {
           let url: string = subThis.imageUrl || '';
           (<HTMLInputElement>(
             document.querySelector('input[type=url]')
           )).value = url;
         },
-        images_upload_handler: function (blobInfo:any, success:any, failure:any) {
-          window.localStorage.setItem("blob", 'data:' + blobInfo.blob().type + ';base64,' + blobInfo.base64());
+        images_upload_handler: function (
+          blobInfo: any,
+          success: any,
+          failure: any
+        ) {
+          window.localStorage.setItem(
+            'blob',
+            'data:' + blobInfo.blob().type + ';base64,' + blobInfo.base64()
+          );
           success(
             'data:' + blobInfo.blob().type + ';base64,' + blobInfo.base64()
           );
@@ -88,17 +96,16 @@ export class UploadComponent implements OnInit {
   }
 
   uploadFlag: boolean = false;
+  stateFlag: String = "false";
   initData: any[] = [];
   selectedFiles?: FileList;
   progressInfos: any[] = [];
   message: string[] = [];
   useDarkMode: boolean = true;
   imageUrl?: string;
-  replaceId: any = 0;
   fileInfos: any[] = [];
-  image_type: string = '';
-  image_name: string = '';
-  image_size: string = '';
+  imageName: string = '';
+  imageSize: string = '';
   baseUrl: string = 'http://localhost:8080/api/files/';
 
   // init define function
@@ -118,11 +125,10 @@ export class UploadComponent implements OnInit {
         let uploadBtn = document.createElement('button');
         uploadBtn.setAttribute('class', 'btn btn-secondary upload_btn p-3');
         uploadBtn.addEventListener('click', (e) => {
-          subThis.replaceId = 0;
+          window.localStorage.setItem("replaceId", "0");
           subThis.uploadFunc();
         });
         uploadBtn.innerHTML = 'UPLOAD';
-        // uploadBtn.addEventListener("click", subThis.uploadFunc);
         let uploadFile = document.createElement('input');
         uploadFile.type = 'file';
         uploadFile.setAttribute('id', 'file');
@@ -137,11 +143,7 @@ export class UploadComponent implements OnInit {
           '<div class="d-flex"><div class="upload"></div></div><div style="border-bottom:1px solid #151515"></div><div class="row" style="max-height: 300px">';
         initData.map(function (item: any, index: any) {
           imageContents +=
-            '<div class="col-sm-4 mt-3"><div class="p-1 image_item d-flex"><img id="' +
-            item._id +
-            '" style="width: 100px; height: 100px" src="assets/' +
-            item.fileName +
-            '" class="img-thumbnail img-fluid mx-auto btn img_item"></div></div>';
+            '<div class="col-sm-4 d-flex mt-3"><div><div class="p-1 rounded-circle image_item d-flex"><img id="' + item._id + '" alt="' + item.title + '" style="width: 100px; height: 100px" src="assets/' + item.fileName + '" class="img-thumbnail img-fluid btn img_item" name="' + item.flag + '"></div><p id="caption_' + item._id + '" class="m-0 text-center btn d-block caption">' + item.caption + '</p></div><div class="btn remove-image"><svg width="24" height="24"><g fill-rule="nonzero"><path d="M19 4a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6c0-1.1.9-2 2-2h14zM5 6v12h14V6H5z"></path><path d="M14.4 8.6l1 1-2.3 2.4 2.3 2.4-1 1-2.4-2.3-2.4 2.3-1-1 2.3-2.4-2.3-2.4 1-1 2.4 2.3z"></path></g></svg></div></div>';
         });
 
         imageContents += '</div>';
@@ -149,7 +151,41 @@ export class UploadComponent implements OnInit {
         let modalBody = <HTMLDivElement>(
           document.querySelector('[role=tabpanel]')
         );
+
+        setTimeout(() => {
+          let captionBtn = document.querySelectorAll(".caption");
+          for (var n = 0; n < captionBtn.length; n++) {
+            captionBtn[n].addEventListener("click", subThis.changeCaption);
+          }
+        }, 100);
+
         modalBody.prepend(imageSection);
+        if (!(<HTMLDivElement>document.querySelector('.image-caption'))) {
+          let imageCaption = document.createElement('div');
+          imageCaption.setAttribute('aria-disabled', 'false');
+          imageCaption.setAttribute('class', 'tox-form__group');
+          imageCaption.innerHTML =
+            '<label class="tox-label" for="form-field_7218866513131616404863400">Image Caption</label><input type="text" tabindex="-1" data-alloy-tabstop="true" class="tox-textfield image-caption">';
+
+          setTimeout(() => {
+            let imageForm = <HTMLDivElement>(
+              document.querySelector('.tox-dialog__body-content .tox-form')
+            );
+            if (imageForm.querySelector('.tox-icon.tox-checkbox-icon__unchecked')) {
+              (<HTMLDivElement>(
+                imageForm.querySelector('.tox-icon.tox-checkbox-icon__unchecked')
+              )).click();
+              imageForm
+                .querySelector('.tox-form__grid.tox-form__grid--2col')
+                ?.setAttribute('style', 'display: none');
+              imageForm.appendChild(imageCaption);
+            }
+          }, 20);
+        }
+
+        let saveBtn = <HTMLButtonElement>document.querySelector('[title=Save]');
+        saveBtn.addEventListener('click', subThis.saveImageInfo);
+
         (<HTMLButtonElement>document.querySelector('.upload')).appendChild(
           uploadBtn
         );
@@ -163,32 +199,69 @@ export class UploadComponent implements OnInit {
           .querySelector('[role=dialog]')
           ?.setAttribute('style', 'max-width: 600px !important');
 
-        var imageItem = document.querySelectorAll('.image_item');
+        var imageItem = document.querySelectorAll('.image_item img');
         for (var i = 0; i < imageItem.length; i++) {
           imageItem[i].addEventListener('click', function (e: any) {
             (<HTMLInputElement>document.querySelector('#file')).click();
-            subThis.replaceId = e.target.id;
+            window.localStorage.setItem("replaceId", e.target.id);
+            subThis.stateFlag = e.target.name;
+          });
+        }
+
+        var removeImage = document.querySelectorAll(".remove-image");
+        for (var j = 0; j < removeImage.length; j++) {
+          removeImage[j].addEventListener("click", function (e: any) {
+            if (confirm("Do you really want to delete?") == true) {
+              subThis.removeImage(e);
+            }
           });
         }
       }, 100);
 
+      // if (window.localStorage.getItem("replaceId") == "0") {
       (<HTMLDivElement>(
         document.querySelector('.tox-dialog__body')
       )).addEventListener('click', function (e: any) {
         if (e.target.className == 'tox-dialog__body-nav-item tox-tab') {
           if (<HTMLDivElement>document.querySelector('.image-section')) {
             (<HTMLDivElement>document.querySelector('.image-section')).remove();
+
+            setTimeout(() => {
+              if (!(<HTMLDivElement>document.querySelector('.image-caption'))) {
+                let imageCaption = document.createElement('div');
+                imageCaption.setAttribute('aria-disabled', 'false');
+                imageCaption.setAttribute('class', 'tox-form__group');
+                imageCaption.innerHTML =
+                  '<label class="tox-label" for="form-field_7218866513131616404863400">Image Caption</label><input type="text" tabindex="-1" data-alloy-tabstop="true" class="tox-textfield image-caption">';
+
+                setTimeout(() => {
+                  let imageForm = <HTMLDivElement>(
+                    document.querySelector('.tox-form__group')
+                  );
+                  if (imageForm.querySelector('.tox-icon.tox-checkbox-icon__unchecked')) {
+                    (<HTMLDivElement>(
+                      imageForm.querySelector('.tox-icon.tox-checkbox-icon__unchecked')
+                    )).click();
+                    imageForm
+                      .querySelector('.tox-checkbox')
+                      ?.setAttribute('style', 'display: none');
+                    imageForm.appendChild(imageCaption);
+                  }
+                }, 20);
+              }
+            }, 50);
             subThis.initDefine();
           }
         }
       });
+      // }
     }, 200);
   }
 
   getListFiles(): void {
     this.venderService.getListFiles().subscribe(
       (res: any) => {
-        const subThis = this;
+        let subThis = this;
         if (res.body != undefined) {
           subThis.initData = [];
           res.body.imageInfos.map(function (item: any, index: any) {
@@ -206,8 +279,90 @@ export class UploadComponent implements OnInit {
     );
   }
 
+  changeCaption(e: any) {
+    let oldCaption = e.target.innerHTML;
+    let oldImage = e.target.parentNode.firstChild.firstChild;
+    let oldImageUrl = <HTMLInputElement>document.querySelectorAll(".tox-textfield")[0];
+    oldImageUrl.value = "assets/" + oldImage.src.split("assets/")[1];
+    (<HTMLInputElement>document.querySelectorAll(".tox-textfield")[1]).value = oldImage.alt;
+    (<HTMLInputElement>document.querySelectorAll(".tox-textfield")[2]).value = "100";
+    (<HTMLInputElement>document.querySelectorAll(".tox-textfield")[3]).value = "100";
+    (<HTMLInputElement>document.querySelectorAll(".tox-textfield")[4]).value = oldCaption;
+    window.localStorage.setItem("replaceId", oldImage.id);
+    console.log("ID", window.localStorage.getItem("replaceId"));
+    this.stateFlag = "true";
+    oldImageUrl.setAttribute("readonly", "true");
+  }
+
+
   uploadFunc() {
     (<HTMLInputElement>document.querySelector('#file')).click();
+  }
+
+  saveImageInfo() {
+    var subThis = this;
+    let fileName = <HTMLInputElement>(
+      document.querySelectorAll('.tox-textfield')[0]
+    );
+    let altData = <HTMLInputElement>(
+      document.querySelectorAll('.tox-textfield')[1]
+    );
+    let caption = <HTMLInputElement>(
+      document.querySelectorAll('.tox-textfield')[4]
+    );
+    let replaceId = window.localStorage.getItem("replaceId");
+    this.stateFlag = "true";
+
+    setTimeout(function () {
+      subThis.venderService
+        .saveImageInfo(
+          replaceId,
+          fileName.value,
+          altData.value,
+          caption.value,
+          subThis.stateFlag
+        )
+        .subscribe(
+          (event: any) => {
+            if (event) {
+              let textContent = <HTMLIFrameElement>document.querySelector("#editor_ifr");
+              let figCaption = textContent.contentWindow?.document.querySelectorAll("#tinymce figcaption");
+              if (figCaption) {
+                (<HTMLElement>figCaption[figCaption.length - 2]).innerHTML = caption.value;
+              }
+            }
+          },
+          (err: any) => {
+          }
+        );
+    }, 100)
+  }
+
+  removeImage(e: any) {
+    let selectedImage;
+    if (e.target.tagName == "svg") {
+      selectedImage = e.target.parentNode.parentNode.firstChild.firstChild.firstChild;
+    } else if (e.target.tagName == "path") {
+      selectedImage = e.target.parentNode.parentNode.parentNode.parentNode.firstChild.firstChild.firstChild;
+    }
+    let removeImageId: any = selectedImage.id;
+    console.log(removeImageId)
+    this.venderService.removeImage(removeImageId).subscribe(
+      (event: any) => {
+        if (event) {
+          if (<HTMLDivElement>document.querySelector('.image-section')) {
+            (<HTMLDivElement>(
+              document.querySelector('.image-section')
+            )).remove();
+            setTimeout(() => {
+              this.initDefine();
+            }, 20);
+          }
+        }
+      },
+      (err: any) => {
+        console.log(err);
+      });
   }
 
   // Create upload button in tinyMCE plugin
@@ -224,10 +379,9 @@ export class UploadComponent implements OnInit {
     if (this.selectedFiles) {
       for (let i = 0; i < this.selectedFiles.length; i++) {
         this.upload(i, this.selectedFiles[i]);
-        this.image_name = this.selectedFiles[i].name;
+        this.imageName = this.selectedFiles[i].name;
         this.imageUrl = 'assets/' + this.selectedFiles[i].name;
-        this.image_type = this.selectedFiles[i].type;
-        this.image_size = this.selectedFiles[i].size + 'bytes';
+        this.imageSize = this.selectedFiles[i].size + 'bytes';
       }
     }
   }
@@ -237,7 +391,7 @@ export class UploadComponent implements OnInit {
     this.progressInfos[idx] = { value: 0, fileName: file.name };
     this.imageUrl = '';
     if (file) {
-      this.venderService.upload(file, this.replaceId).subscribe(
+      this.venderService.upload(file, window.localStorage.getItem("replaceId")).subscribe(
         (event: any) => {
           if (event.type === HttpEventType.UploadProgress) {
             this.progressInfos[idx].value = Math.round(
@@ -262,6 +416,7 @@ export class UploadComponent implements OnInit {
               )).remove();
               this.initDefine();
             }
+            window.localStorage.setItem("replaceId", event.body);
           }
         },
         (err: any) => {
@@ -272,10 +427,6 @@ export class UploadComponent implements OnInit {
         }
       );
     }
-  }
-
-  saveImage() {
-    console.log('save', 123123123123);
   }
 
   onResize(event: any) {
